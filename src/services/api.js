@@ -2,10 +2,15 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-const BASE_URL = Platform.select({
-  ios:     'http://localhost:8002/api',
-  android: 'http://10.0.2.2:8002/api',
-});
+// URL de l'API selon l'environnement
+const API_URL = __DEV__
+  ? Platform.select({
+      ios: 'http://localhost:8002/api',
+      android: 'http://10.0.2.2:8002/api',
+    })
+  : 'https://restaurant.iues-insambot.com/api';
+
+const BASE_URL = API_URL;
 
 const api = axios.create({
   baseURL: BASE_URL,
