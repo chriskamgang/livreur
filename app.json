@@ -35,7 +35,6 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.chrisdev237.expressinsam",
-      "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [
         "ACCESS_FINE_LOCATION",
