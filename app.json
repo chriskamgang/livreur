@@ -1,25 +1,48 @@
 {
   "expo": {
-    "name": "restaurant-delivery-driver",
-    "slug": "restaurant-delivery-driver",
+    "name": "Express INSAM",
+    "slug": "express-insam",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "description": "Application de livraison pour les livreurs partenaires de MyINSAM Resto. Gérez vos livraisons, suivez vos statistiques en temps réel.",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "extra": {
+      "privacyPolicyUrl": "https://votresite.com/privacy-driver",
+      "termsOfServiceUrl": "https://votresite.com/terms-driver",
+      "supportEmail": "livreurs@myinsam.cm",
+      "supportPhone": "+237659339778"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.chrisdev237.expressinsam",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "L'application utilise votre position GPS pour suivre vos livraisons en temps réel.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "L'application a besoin d'accéder à votre position en arrière-plan pour partager votre localisation avec les clients pendant les livraisons.",
+        "NSLocationAlwaysUsageDescription": "L'application partage votre position avec les clients pendant les livraisons actives.",
+        "UIBackgroundModes": ["location"]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.chrisdev237.expressinsam",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CALL_PHONE",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ],
       "edgeToEdgeEnabled": true
     },
     "web": {
