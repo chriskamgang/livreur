@@ -154,3 +154,52 @@ workflows:
         notify:
           success: true
           failure: true
+
+  standalone-apk:
+    name: Standalone APK (No Metro Required)
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        - expo
+      node: 20.11.0
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          npm install
+      - name: Install Expo CLI and EAS
+        script: |
+          npm install -g expo-cli eas-cli
+      - name: Generate native Android project
+        script: |
+          npx expo prebuild --platform android --clean
+      - name: Set up local.properties
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Build production release APK
+        script: |
+          cd android
+          ./gradlew assembleRelease
+      - name: Sign APK with debug key (for testing)
+        script: |
+          cd android/app/build/outputs/apk/release
+          if [ ! -f app-release.apk ]; then
+            echo "APK not found!"
+            exit 1
+          fi
+          # Zipalign the APK
+          $ANDROID_SDK_ROOT/build-tools/*/zipalign -v -p 4 app-release-unsigned.apk app-release-aligned.apk || cp app-release.apk app-release-aligned.apk
+          # Sign with debug keystore for testing
+          $ANDROID_SDK_ROOT/build-tools/*/apksigner sign --ks ~/.android/debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out app-standalone.apk app-release-aligned.apk || cp app-release.apk app-standalone.apk
+          echo "Standalone APK created successfully!"
+          ls -lh app-standalone.apk
+    artifacts:
+      - android/app/build/outputs/apk/release/app-standalone.apk
+      - android/app/build/outputs/apk/release/app-release.apk
+    publishing:
+      email:
+        recipients:
+          - chriskamgang@gmail.com
+        notify:
+          success: true
+          failure: true
