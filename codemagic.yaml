@@ -1,0 +1,152 @@
+workflows:
+  react-native-android:
+    name: React Native Android
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+    environment:
+      android_signing:
+        - keystore_reference
+      groups:
+        - expo
+      vars:
+        PACKAGE_NAME: "com.chrisdev237.expressinsam"
+      node: 20.11.0
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          npm install
+      - name: Install Expo CLI
+        script: |
+          npm install -g expo-cli eas-cli
+      - name: Set up local.properties
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Set up app/build.gradle
+        script: |
+          mv ./android/app/build.gradle ./android/app/build.gradle.bak
+          cat ./android/app/build.gradle.bak \
+            | sed -E 's/versionCode ([0-9]+)/versionCode ${{ BUILD_NUMBER }}/' \
+            > ./android/app/build.gradle
+          rm ./android/app/build.gradle.bak
+      - name: Build Android app
+        script: |
+          npx expo prebuild --platform android
+          cd android
+          ./gradlew assembleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/mapping.txt
+    publishing:
+      email:
+        recipients:
+          - chriskamgang@gmail.com
+        notify:
+          success: true
+          failure: true
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
+
+  react-native-ios:
+    name: React Native iOS
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.chrisdev237.expressinsam
+      groups:
+        - expo
+      vars:
+        BUNDLE_ID: "com.chrisdev237.expressinsam"
+        XCODE_WORKSPACE: "ios/ExpressINSAM.xcworkspace"
+        XCODE_SCHEME: "ExpressINSAM"
+      node: 20.11.0
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          npm install
+      - name: Install Expo CLI
+        script: |
+          npm install -g expo-cli eas-cli
+      - name: Install CocoaPods dependencies
+        script: |
+          npx expo prebuild --platform ios
+          cd ios && pod install
+      - name: Set up code signing settings on Xcode project
+        script: |
+          xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd $CM_BUILD_DIR/ios
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID")
+          agvtool new-version -all $(($LATEST_BUILD_NUMBER + 1))
+      - name: Build ipa for distribution
+        script: |
+          xcode-project build-ipa \
+            --workspace "$CM_BUILD_DIR/ios/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      email:
+        recipients:
+          - chriskamgang@gmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - App Beta Testers
+        submit_to_app_store: false
+
+  react-native-development:
+    name: Development Build (APK)
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        - expo
+      node: 20.11.0
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'develop'
+          include: true
+          source: true
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          npm install
+      - name: Install Expo CLI
+        script: |
+          npm install -g expo-cli
+      - name: Set up local.properties
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Build Android debug APK
+        script: |
+          npx expo prebuild --platform android
+          cd android
+          ./gradlew assembleDebug
+    artifacts:
+      - android/app/build/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - chriskamgang@gmail.com
+        notify:
+          success: true
+          failure: true
