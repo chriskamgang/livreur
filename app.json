@@ -8,14 +8,6 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "description": "Application de livraison pour les livreurs partenaires de MyINSAM Resto. Gérez vos livraisons, suivez vos statistiques en temps réel.",
-    "plugins": [
-      [
-        "react-native-maps",
-        {
-          "useGoogleMaps": false
-        }
-      ]
-    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
