@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "1070472586568",
+    "project_id": "estuaire-eat",
+    "storage_bucket": "estuaire-eat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1070472586568:android:beeecb8d7e449d3350ff7d",
+        "android_client_info": {
+          "package_name": "com.chrisdev237.expressinsam"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1070472586568-njjtn28ulh40e32gd5hslhdckd3a20p0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAswrhileTPl8_MInvDt596PbDz062IfDA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1070472586568-eginvmhleg4dqppgosfm46fdl9pnbnh2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1070472586568-q700duhak98lua5h6ug6kgpve3dkq3rm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.chrisdev237.estuaireresto"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1070472586568:android:d1d910be43ad6e0950ff7d",
+        "android_client_info": {
+          "package_name": "com.chrisdev237.myinsamresto1"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1070472586568-njjtn28ulh40e32gd5hslhdckd3a20p0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAswrhileTPl8_MInvDt596PbDz062IfDA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1070472586568-eginvmhleg4dqppgosfm46fdl9pnbnh2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1070472586568-q700duhak98lua5h6ug6kgpve3dkq3rm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.chrisdev237.estuaireresto"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

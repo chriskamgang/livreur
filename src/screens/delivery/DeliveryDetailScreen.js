@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  SafeAreaView, ActivityIndicator, Alert, Linking,
+  ActivityIndicator, Alert, Linking, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { deliveryService } from '../../services/deliveryService';
 import { locationService } from '../../services/locationService';
 
 const COLORS = { primary: '#FF6B35', bg: '#f8f8f8', card: '#fff', text: '#1a1a1a', gray: '#888' };
 
-const PAYMENT_LABELS = { cash: '💵 Espèces', mtn: '📱 MTN Mobile Money', orange: '🍊 Orange Money' };
+// Étapes côté livreur
+const TO_RESTAURANT_STATUSES = ['assigned', 'going_to_restaurant', 'at_restaurant'];
+const TO_CLIENT_STATUSES     = ['picked_up', 'on_the_way', 'arrived'];
+
+const PAYMENT_LABELS = { cash: 'Especes', mtn: 'MTN Mobile Money', orange: 'Orange Money', mtn_money: 'MTN Mobile Money', orange_money: 'Orange Money' };
 
 export default function DeliveryDetailScreen({ route, navigation }) {
   const { orderId } = route.params;
@@ -17,23 +23,41 @@ export default function DeliveryDetailScreen({ route, navigation }) {
   const [acting,  setActing]  = useState(false);
 
   useEffect(() => {
-    loadOrder();
-
-    // Nettoyer le tracking GPS quand on quitte l'écran
-    return () => {
-      locationService.stopTracking();
-    };
+    // Le suivi GPS continue quand on quitte l'écran : il s'arrête à la livraison / l'annulation
+    loadOrder({ syncTracking: true });
   }, [orderId]);
 
-  const loadOrder = async () => {
+  const loadOrder = async ({ syncTracking = false } = {}) => {
     try {
       const data = await deliveryService.getDelivery(orderId);
       setOrder(data);
+      if (syncTracking) syncDeliveryState(data);
+      return data;
     } catch (e) {
       Alert.alert('Erreur', 'Impossible de charger la commande.');
       navigation.goBack();
     } finally {
       setLoading(false);
+    }
+  };
+
+  // À la réouverture : rattraper un statut intermédiaire et relancer le GPS si besoin
+  const syncDeliveryState = async (data) => {
+    const d = data?.delivery;
+    if (!d?.id) return;
+    if (TO_RESTAURANT_STATUSES.includes(d.status) || TO_CLIENT_STATUSES.includes(d.status)) {
+      locationService.startTracking(d.id, { silent: true });
+      try {
+        if (d.status === 'assigned') {
+          await deliveryService.updateStatus(d.id, 'going_to_restaurant');
+          await loadOrder();
+        } else if (d.status === 'picked_up') {
+          await deliveryService.updateStatus(d.id, 'on_the_way');
+          await loadOrder();
+        }
+      } catch (_) {}
+    } else if (['delivered', 'failed'].includes(d.status) && locationService.getActiveDeliveryId() === String(d.id)) {
+      locationService.stopTracking();
     }
   };
 
@@ -46,7 +70,17 @@ export default function DeliveryDetailScreen({ route, navigation }) {
         { text: 'Accepter', onPress: async () => {
           setActing(true);
           try {
-            await deliveryService.acceptDelivery(orderId);
+            const res = await deliveryService.acceptDelivery(orderId);
+            const deliveryId = res?.delivery?.id || order?.delivery?.id;
+            if (deliveryId) {
+              // Partage de position dès l'acceptation (trajet vers le restaurant)
+              await locationService.startTracking(deliveryId);
+              try {
+                await deliveryService.updateStatus(deliveryId, 'going_to_restaurant');
+              } catch (err) {
+                console.warn('going_to_restaurant:', err?.response?.data?.message || err?.message);
+              }
+            }
             await loadOrder();
           } catch (e) {
             Alert.alert('Erreur', e.response?.data?.message || 'Impossible d\'accepter.');
@@ -56,31 +90,26 @@ export default function DeliveryDetailScreen({ route, navigation }) {
     );
   };
 
-  const handlePickup = () => {
+  // Au restaurant : un seul bouton → récupérée puis en route vers le client
+  const handleTakeOrder = () => {
     Alert.alert(
-      'Confirmer la récupération',
-      'Avez-vous récupéré la commande au restaurant ?',
+      'Commande récupérée ?',
+      'Confirmez que la commande est prête et que vous l\'avez en main.',
       [
         { text: 'Non', style: 'cancel' },
-        { text: 'Oui, récupérée', onPress: async () => {
+        { text: 'Oui, je la récupère', onPress: async () => {
           setActing(true);
+          const deliveryId = order.delivery?.id;
           try {
-            const deliveryId = order.delivery?.id || orderId;
-            await deliveryService.pickupDelivery(deliveryId);
-
-            // Démarrer le tracking GPS automatiquement
-            try {
-              await locationService.startTracking(deliveryId);
-              Alert.alert('📍 Tracking GPS activé', 'Votre position sera partagée avec le client en temps réel.');
-            } catch (locationError) {
-              console.error('Erreur tracking GPS:', locationError);
-              Alert.alert('Attention', 'Le tracking GPS n\'a pas pu démarrer. Vérifiez les permissions de localisation.');
-            }
-
-            await loadOrder();
+            await deliveryService.updateStatus(deliveryId, 'picked_up');
+            await deliveryService.updateStatus(deliveryId, 'on_the_way');
+            locationService.startTracking(deliveryId);
           } catch (e) {
             Alert.alert('Erreur', e.response?.data?.message || 'Erreur.');
-          } finally { setActing(false); }
+          } finally {
+            await loadOrder();
+            setActing(false);
+          }
         }},
       ]
     );
@@ -92,19 +121,49 @@ export default function DeliveryDetailScreen({ route, navigation }) {
       'La commande a-t-elle bien été livrée au client ?',
       [
         { text: 'Non', style: 'cancel' },
-        { text: 'Oui, livrée ✅', onPress: async () => {
+        { text: 'Oui, livrée', onPress: async () => {
           setActing(true);
           try {
-            await deliveryService.completeDelivery(order.delivery?.id || orderId);
+            await deliveryService.completeDelivery(order.delivery?.id);
 
             // Arrêter le tracking GPS
-            locationService.stopTracking();
+            await locationService.stopTracking();
 
-            Alert.alert('🎉 Livraison terminée !', 'Bravo ! La commande a été livrée avec succès.', [
+            Alert.alert('Livraison terminée !', 'Bravo ! La commande a été livrée avec succès.', [
               { text: 'OK', onPress: () => navigation.goBack() }
             ]);
           } catch (e) {
             Alert.alert('Erreur', e.response?.data?.message || 'Erreur.');
+          } finally { setActing(false); }
+        }},
+      ]
+    );
+  };
+
+  const handleReject = () => {
+    Alert.alert(
+      'Annuler la livraison',
+      'Voulez-vous vraiment annuler cette livraison ? Elle sera proposée aux autres livreurs.',
+      [
+        { text: 'Non', style: 'cancel' },
+        { text: 'Oui, annuler', style: 'destructive', onPress: async () => {
+          setActing(true);
+          try {
+            await deliveryService.rejectDelivery(orderId);
+            // Le backend ne libère la livraison que si elle est encore "assigned" : vérifier
+            let fresh = null;
+            try { fresh = (await deliveryService.getDelivery(orderId))?.delivery; } catch (_) {}
+            if (fresh && fresh.status !== 'searching') {
+              setOrder(prev => (prev ? { ...prev, delivery: fresh } : prev));
+              Alert.alert('Annulation impossible', 'Cette livraison ne peut plus être annulée depuis l\'application. Contactez le support.');
+              return;
+            }
+            await locationService.stopTracking();
+            Alert.alert('Livraison annulée', 'La commande a été remise en disponibilité.', [
+              { text: 'OK', onPress: () => navigation.goBack() }
+            ]);
+          } catch (e) {
+            Alert.alert('Erreur', e.response?.data?.message || 'Impossible d\'annuler.');
           } finally { setActing(false); }
         }},
       ]
@@ -130,35 +189,32 @@ export default function DeliveryDetailScreen({ route, navigation }) {
     });
   };
 
-  const navigateToClient = () => {
-    const address = order?.delivery_address?.full_address;
-    if (!address) {
-      Alert.alert('Erreur', 'Adresse de livraison non disponible');
+  // Ouvre Google Maps / Apple Maps vers des coordonnées (ou à défaut une adresse)
+  const openNavigation = (lat, lng, address, label) => {
+    const hasCoords = lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng));
+    if (!hasCoords && !address) {
+      Alert.alert('Erreur', 'Adresse non disponible');
       return;
     }
+    const dest = hasCoords ? `${Number(lat)},${Number(lng)}` : encodeURIComponent(address);
+    const google = () => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`)
+      .catch(() => Alert.alert('Erreur', 'Impossible d\'ouvrir Google Maps'));
+    const apple = () => Linking.openURL(`http://maps.apple.com/?daddr=${dest}&dirflg=d`)
+      .catch(() => Alert.alert('Erreur', 'Impossible d\'ouvrir Apple Maps'));
 
-    // Ouvrir l'application de navigation (Google Maps / Apple Maps)
-    Alert.alert(
-      'Navigation',
-      'Ouvrir la navigation vers le client ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Google Maps',
-          onPress: () => {
-            const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
-            Linking.openURL(url).catch(() => Alert.alert('Erreur', 'Impossible d\'ouvrir Google Maps'));
-          }
-        },
-        {
-          text: 'Apple Maps',
-          onPress: () => {
-            const url = `http://maps.apple.com/?daddr=${encodeURIComponent(address)}`;
-            Linking.openURL(url).catch(() => Alert.alert('Erreur', 'Impossible d\'ouvrir Apple Maps'));
-          }
-        }
-      ]
-    );
+    const buttons = [{ text: 'Annuler', style: 'cancel' }, { text: 'Google Maps', onPress: google }];
+    if (Platform.OS === 'ios') buttons.push({ text: 'Apple Maps', onPress: apple });
+    Alert.alert('Navigation', `Ouvrir la navigation vers ${label} ?`, buttons);
+  };
+
+  const navigateToRestaurant = () => {
+    const r = order?.restaurant;
+    openNavigation(r?.latitude, r?.longitude, r?.address, 'le restaurant');
+  };
+
+  const navigateToClient = () => {
+    const a = order?.address;
+    openNavigation(a?.latitude, a?.longitude, order?.delivery_address?.full_address, 'le client');
   };
 
   if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -166,16 +222,28 @@ export default function DeliveryDetailScreen({ route, navigation }) {
 
   const delivery    = order.delivery;
   const deliveryId  = delivery?.id;
-  const canAccept   = order.status === 'ready' && (!delivery || delivery.status === 'searching');
-  const canPickup   = delivery?.status === 'assigned'; // assigned to this driver, not picked up yet
-  const canDeliver  = delivery?.status === 'picked_up' || delivery?.status === 'on_the_way';
+  const isPickable  = order.status === 'preparing' || order.status === 'ready';
+  const canAccept   = isPickable && (!delivery || delivery.status === 'searching');
+  const toRestaurant = TO_RESTAURANT_STATUSES.includes(delivery?.status);
+  const toClient     = TO_CLIENT_STATUSES.includes(delivery?.status);
+  const isPreparing  = order.status === 'preparing';
+
+  const banner = toClient
+    ? { text: 'En route vers le client', icon: 'car-outline', color: COLORS.primary, bg: '#FFF3E0' }
+    : toRestaurant
+      ? { text: 'En route vers le restaurant', icon: 'walk-outline', color: '#3b82f6', bg: '#EFF6FF' }
+      : canAccept
+        ? (isPreparing
+          ? { text: 'En préparation au restaurant', icon: 'flame-outline', color: '#d97706', bg: '#fef3c7' }
+          : { text: 'Prête — en attente d\'un livreur', icon: 'cube-outline', color: '#10b981', bg: '#d1fae5' })
+        : { text: 'Commande terminée', icon: 'checkmark-done-outline', color: '#10b981', bg: '#d1fae5' };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>←</Text>
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Commande #{order.order_number}</Text>
         <View style={{ width: 40 }} />
@@ -183,15 +251,33 @@ export default function DeliveryDetailScreen({ route, navigation }) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
         {/* Statut actuel */}
-        <View style={[styles.statusBanner, { backgroundColor: canDeliver ? '#FFF3E0' : canPickup ? '#EFF6FF' : '#d1fae5' }]}>
-          <Text style={styles.statusBannerIcon}>{canDeliver ? '🚚' : canPickup ? '📦' : '⏳'}</Text>
-          <Text style={[styles.statusBannerText, { color: canDeliver ? COLORS.primary : canPickup ? '#3b82f6' : '#10b981' }]}>
-            {canDeliver ? 'En cours de livraison' : canPickup ? 'À récupérer au restaurant' : 'En attente d\'acceptation'}
-          </Text>
+        <View style={[styles.statusBanner, { backgroundColor: banner.bg }]}>
+          <Ionicons name={banner.icon} size={24} color={banner.color} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.statusBannerText, { color: banner.color }]}>{banner.text}</Text>
+            {toRestaurant && (
+              <Text style={styles.statusBannerSub}>
+                {isPreparing ? 'Le restaurant prépare encore la commande.' : 'La commande est prête au restaurant.'}
+              </Text>
+            )}
+            {(toRestaurant || toClient) && (
+              <Text style={styles.statusBannerSub}>
+                <Ionicons name="locate-outline" size={12} color={COLORS.gray} /> Votre position est partagée avec le client
+              </Text>
+            )}
+          </View>
         </View>
 
+        {toRestaurant && order.restaurant && (
+          <TouchableOpacity style={[styles.navBtn, { backgroundColor: '#10b981', marginTop: 0, marginBottom: 16 }]} onPress={navigateToRestaurant}>
+            <Ionicons name="restaurant-outline" size={20} color="#fff" />
+            <Text style={styles.navBtnText}>Naviguer vers le restaurant</Text>
+            <Ionicons name="chevron-forward" size={18} color="#fff" />
+          </TouchableOpacity>
+        )}
+
         {/* Client */}
-        <Text style={styles.sectionTitle}>👤 Client</Text>
+        <Text style={styles.sectionTitle}><Ionicons name="person-outline" size={14} color={COLORS.gray} /> Client</Text>
         <View style={styles.card}>
           <View style={styles.clientRow}>
             <View style={styles.clientAvatar}>
@@ -208,13 +294,13 @@ export default function DeliveryDetailScreen({ route, navigation }) {
             onPress={callClient}
             activeOpacity={order.client?.phone ? 0.7 : 1}
           >
-            <Text style={styles.callBtnLargeIcon}>📞</Text>
+            <Ionicons name="call-outline" size={20} color="#fff" />
             <Text style={styles.callBtnLargeText}>Appeler le client</Text>
           </TouchableOpacity>
         </View>
 
         {/* Adresse de livraison */}
-        <Text style={styles.sectionTitle}>📍 Livraison</Text>
+        <Text style={styles.sectionTitle}><Ionicons name="location-outline" size={14} color={COLORS.gray} /> Livraison</Text>
         <View style={styles.card}>
           <Text style={styles.addressText}>{order.delivery_address?.full_address || 'Adresse non spécifiée'}</Text>
           {order.note && (
@@ -224,22 +310,22 @@ export default function DeliveryDetailScreen({ route, navigation }) {
             </View>
           )}
           {/* Bouton de navigation GPS */}
-          {(canPickup || canDeliver) && order.delivery_address?.full_address && (
+          {toClient && (order.delivery_address?.full_address || order.address?.latitude) && (
             <TouchableOpacity style={styles.navBtn} onPress={navigateToClient}>
-              <Text style={styles.navBtnIcon}>🧭</Text>
-              <Text style={styles.navBtnText}>Démarrer la navigation GPS</Text>
-              <Text style={styles.navBtnArrow}>→</Text>
+              <Ionicons name="navigate-outline" size={20} color="#fff" />
+              <Text style={styles.navBtnText}>Naviguer vers le client</Text>
+              <Ionicons name="chevron-forward" size={18} color="#fff" />
             </TouchableOpacity>
           )}
         </View>
 
         {/* Articles commandés */}
-        <Text style={styles.sectionTitle}>📦 Articles à récupérer ({order.items?.length || 0})</Text>
+        <Text style={styles.sectionTitle}><Ionicons name="cube-outline" size={14} color={COLORS.gray} /> Articles a recuperer ({order.items?.length || 0})</Text>
         <View style={styles.card}>
           {/* Restaurant info */}
           {order.restaurant && (
             <View style={styles.restaurantBox}>
-              <Text style={styles.restaurantIcon}>🍽️</Text>
+              <Ionicons name="restaurant-outline" size={24} color="#10b981" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.restaurantLabel}>À récupérer chez :</Text>
                 <Text style={styles.restaurantName}>{order.restaurant.name}</Text>
@@ -271,7 +357,7 @@ export default function DeliveryDetailScreen({ route, navigation }) {
         </View>
 
         {/* Paiement */}
-        <Text style={styles.sectionTitle}>💳 Paiement</Text>
+        <Text style={styles.sectionTitle}><Ionicons name="card-outline" size={14} color={COLORS.gray} /> Paiement</Text>
         <View style={styles.card}>
           <View style={styles.payRow}>
             <Text style={styles.payLabel}>{PAYMENT_LABELS[order.payment_method] || order.payment_method}</Text>
@@ -279,13 +365,13 @@ export default function DeliveryDetailScreen({ route, navigation }) {
           </View>
           {order.payment_method === 'cash' && (
             <View style={styles.cashWarning}>
-              <Text style={styles.cashWarningText}>⚠️ Encaissez {Number(order.total_amount).toLocaleString('fr-FR')} XAF en espèces</Text>
+              <Text style={styles.cashWarningText}><Ionicons name="alert-circle-outline" size={14} color="#854d0e" /> Encaissez {Number(order.total_amount).toLocaleString('fr-FR')} XAF en especes</Text>
             </View>
           )}
         </View>
       </ScrollView>
 
-      {/* Bouton d'action principal */}
+      {/* Boutons d'action */}
       <View style={styles.footer}>
         {acting ? (
           <View style={styles.actionBtn}>
@@ -293,15 +379,20 @@ export default function DeliveryDetailScreen({ route, navigation }) {
           </View>
         ) : canAccept ? (
           <TouchableOpacity style={styles.actionBtn} onPress={handleAccept}>
-            <Text style={styles.actionBtnText}>✅ Accepter la livraison</Text>
+            <Text style={styles.actionBtnText}><Ionicons name="checkmark-circle-outline" size={18} color="#fff" /> Accepter la livraison</Text>
           </TouchableOpacity>
-        ) : canPickup ? (
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#10b981' }]} onPress={handlePickup}>
-            <Text style={styles.actionBtnText}>📦 Confirmer la récupération</Text>
-          </TouchableOpacity>
-        ) : canDeliver ? (
+        ) : toRestaurant ? (
+          <>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#3b82f6' }]} onPress={handleTakeOrder}>
+              <Text style={styles.actionBtnText}><Ionicons name="bag-check-outline" size={18} color="#fff" /> Commande prête — je la récupère</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.rejectBtn} onPress={handleReject}>
+              <Text style={styles.rejectBtnText}><Ionicons name="close-circle-outline" size={16} color="#ef4444" /> Annuler la livraison</Text>
+            </TouchableOpacity>
+          </>
+        ) : toClient ? (
           <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#22c55e' }]} onPress={handleComplete}>
-            <Text style={styles.actionBtnText}>🏠 Confirmer la livraison</Text>
+            <Text style={styles.actionBtnText}><Ionicons name="home-outline" size={18} color="#fff" /> Commande livrée</Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -327,6 +418,7 @@ const styles = StyleSheet.create({
   },
   statusBannerIcon: { fontSize: 24 },
   statusBannerText: { fontSize: 15, fontWeight: '700' },
+  statusBannerSub:  { fontSize: 12, color: COLORS.gray, marginTop: 2 },
 
   sectionTitle: { fontSize: 14, fontWeight: '700', color: COLORS.gray, marginBottom: 8, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
   card: {
@@ -434,4 +526,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
   },
   actionBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  rejectBtn: {
+    borderWidth: 1.5, borderColor: '#ef4444', borderRadius: 16, paddingVertical: 14,
+    alignItems: 'center', marginTop: 10,
+  },
+  rejectBtnText: { color: '#ef4444', fontSize: 15, fontWeight: '700' },
 });

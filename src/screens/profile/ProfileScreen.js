@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  SafeAreaView, ScrollView, Alert, Switch, ActivityIndicator,
-  TextInput, KeyboardAvoidingView, Platform,
+  ScrollView, Alert, ActivityIndicator,
+  TextInput, KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { deliveryService } from '../../services/deliveryService';
+import api from '../../services/api';
 
 const COLORS = { primary: '#FF6B35', bg: '#f8f8f8', card: '#fff', text: '#1a1a1a', gray: '#888' };
 
@@ -25,6 +28,39 @@ export default function ProfileScreen() {
       [
         { text: 'Annuler', style: 'cancel' },
         { text: 'Se déconnecter', style: 'destructive', onPress: logout },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer mon compte',
+      'Cette action est irreversible. Toutes vos donnees seront supprimees definitivement.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer', style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmation finale',
+              'Etes-vous absolument certain ? Cette action ne peut pas etre annulee.',
+              [
+                { text: 'Non, garder mon compte', style: 'cancel' },
+                {
+                  text: 'Oui, supprimer', style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await api.delete('/account');
+                      await logout();
+                    } catch (e) {
+                      Alert.alert('Erreur', e.response?.data?.message || 'Impossible de supprimer le compte.');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
       ]
     );
   };
@@ -73,7 +109,7 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.avatarName}>{user?.name}</Text>
             <View style={[styles.roleBadge, { backgroundColor: '#FFF3E0' }]}>
-              <Text style={styles.roleText}>🛵 Livreur</Text>
+              <Text style={styles.roleText}><Ionicons name="bicycle-outline" size={14} color={COLORS.primary} /> Livreur</Text>
             </View>
           </View>
 
@@ -125,11 +161,11 @@ export default function ProfileScreen() {
               </View>
             ) : (
               <View style={styles.card}>
-                <InfoRow icon="👤" label="Nom"       value={user?.name} />
+                <InfoRow icon="person-outline" label="Nom"       value={user?.name} />
                 <View style={styles.divider} />
-                <InfoRow icon="✉️"  label="Email"     value={user?.email} />
+                <InfoRow icon="mail-outline"  label="Email"     value={user?.email} />
                 <View style={styles.divider} />
-                <InfoRow icon="📞" label="Téléphone" value={user?.phone || 'Non renseigné'} />
+                <InfoRow icon="call-outline" label="Telephone" value={user?.phone || 'Non renseigne'} />
               </View>
             )}
           </View>
@@ -142,7 +178,7 @@ export default function ProfileScreen() {
                 <Text style={styles.infoLabel}>Compte</Text>
                 <View style={[styles.chip, { backgroundColor: user?.status === 'active' ? '#d1fae5' : '#fee2e2' }]}>
                   <Text style={{ color: user?.status === 'active' ? '#16a34a' : '#ef4444', fontWeight: '700', fontSize: 13 }}>
-                    {user?.status === 'active' ? '✅ Actif' : '⚠️ Suspendu'}
+                    {user?.status === 'active' ? 'Actif' : 'Suspendu'}
                   </Text>
                 </View>
               </View>
@@ -151,17 +187,48 @@ export default function ProfileScreen() {
                 <Text style={styles.infoLabel}>Vérification</Text>
                 <View style={[styles.chip, { backgroundColor: user?.is_verified ? '#d1fae5' : '#fef9c3' }]}>
                   <Text style={{ color: user?.is_verified ? '#16a34a' : '#854d0e', fontWeight: '700', fontSize: 13 }}>
-                    {user?.is_verified ? '✅ Vérifié' : '⏳ En attente'}
+                    {user?.is_verified ? 'Verifie' : 'En attente'}
                   </Text>
                 </View>
               </View>
             </View>
           </View>
 
+          {/* Application */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Application</Text>
+            <View style={styles.card}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => Linking.openURL('https://restaurant.iues-insambot.com/privacy-policy')}>
+                <Ionicons name="lock-closed-outline" size={20} color={COLORS.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuLabel}>Politique de confidentialite</Text>
+                  <Text style={styles.menuDesc}>Comment nous protegeons vos donnees</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#ccc" />
+              </TouchableOpacity>
+              <View style={styles.divider} />
+              <TouchableOpacity style={styles.menuItem} onPress={() => Linking.openURL('https://restaurant.iues-insambot.com/terms-of-service')}>
+                <Ionicons name="document-text-outline" size={20} color={COLORS.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuLabel}>Conditions d'utilisation</Text>
+                  <Text style={styles.menuDesc}>Nos conditions generales</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#ccc" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Déconnexion */}
           <View style={[styles.section, { marginTop: 8 }]}>
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-              <Text style={styles.logoutText}>🚪 Se déconnecter</Text>
+              <Text style={styles.logoutText}><Ionicons name="log-out-outline" size={16} color="#ef4444" /> Se deconnecter</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Supprimer le compte */}
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount}>
+              <Text style={styles.deleteText}><Ionicons name="trash-outline" size={16} color="#ef4444" /> Supprimer mon compte</Text>
             </TouchableOpacity>
           </View>
 
@@ -175,7 +242,9 @@ export default function ProfileScreen() {
 function InfoRow({ icon, label, value }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 }}>
-      <Text style={{ fontSize: 18, width: 28, textAlign: 'center' }}>{icon}</Text>
+      <View style={{ width: 28, alignItems: 'center' }}>
+        <Ionicons name={icon} size={20} color="#888" />
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 12, color: '#888', marginBottom: 2 }}>{label}</Text>
         <Text style={{ fontSize: 15, color: '#1a1a1a', fontWeight: '500' }}>{value || '—'}</Text>
@@ -226,4 +295,9 @@ const styles = StyleSheet.create({
 
   logoutBtn:  { backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: '#fee2e2' },
   logoutText: { color: '#ef4444', fontSize: 15, fontWeight: '600' },
+  deleteBtn:  { backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: '#fee2e2' },
+  deleteText: { color: '#ef4444', fontSize: 14, fontWeight: '600' },
+  menuItem:   { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
+  menuLabel:  { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  menuDesc:   { fontSize: 12, color: COLORS.gray, marginTop: 2 },
 });

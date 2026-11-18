@@ -1,8 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { deliveryService } from '../../services/deliveryService';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -23,17 +25,17 @@ function HistoryCard({ delivery }) {
   const getStatusBadge = () => {
     switch (delivery.status) {
       case 'assigned':
-        return { bg: '#fef3c7', color: '#f59e0b', text: '📦 Assignée', emoji: '📦' };
+        return { bg: '#fef3c7', color: '#f59e0b', text: 'Assignee', iconName: 'cube-outline' };
       case 'picked_up':
-        return { bg: '#dbeafe', color: '#3b82f6', text: '🚗 Récupérée', emoji: '🚗' };
+        return { bg: '#dbeafe', color: '#3b82f6', text: 'Recuperee', iconName: 'car-outline' };
       case 'on_the_way':
-        return { bg: '#e0e7ff', color: '#6366f1', text: '🚚 En route', emoji: '🚚' };
+        return { bg: '#e0e7ff', color: '#6366f1', text: 'En route', iconName: 'car-sport-outline' };
       case 'delivered':
-        return { bg: '#d1fae5', color: '#16a34a', text: '✅ Livrée', emoji: '✅' };
+        return { bg: '#d1fae5', color: '#16a34a', text: 'Livree', iconName: 'checkmark-circle-outline' };
       case 'failed':
-        return { bg: '#fee2e2', color: '#ef4444', text: '❌ Échouée', emoji: '❌' };
+        return { bg: '#fee2e2', color: '#ef4444', text: 'Echouee', iconName: 'close-circle-outline' };
       default:
-        return { bg: '#f3f4f6', color: '#6b7280', text: '❓ Inconnu', emoji: '❓' };
+        return { bg: '#f3f4f6', color: '#6b7280', text: 'Inconnu', iconName: 'help-circle-outline' };
     }
   };
 
@@ -46,7 +48,8 @@ function HistoryCard({ delivery }) {
           <Text style={styles.orderNum}>#{order.order_number || delivery.id}</Text>
           <Text style={styles.orderDate}>{date} à {time}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusBadge.bg }]}>
+        <View style={[styles.statusBadge, { backgroundColor: statusBadge.bg, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+          <Ionicons name={statusBadge.iconName} size={14} color={statusBadge.color} />
           <Text style={[styles.statusText, { color: statusBadge.color }]}>
             {statusBadge.text}
           </Text>
@@ -56,7 +59,7 @@ function HistoryCard({ delivery }) {
       <View style={styles.divider} />
 
       <View style={styles.infoRow}>
-        <Text style={styles.infoIcon}>🏠</Text>
+        <Ionicons name="home-outline" size={14} color={COLORS.gray} />
         <Text style={styles.infoText} numberOfLines={1}>
           {delivery.delivery_address || order.delivery_address?.full_address || 'Adresse inconnue'}
         </Text>
@@ -64,7 +67,7 @@ function HistoryCard({ delivery }) {
 
       {order.restaurant && (
         <View style={styles.infoRow}>
-          <Text style={styles.infoIcon}>🍽️</Text>
+          <Ionicons name="restaurant-outline" size={14} color={COLORS.gray} />
           <Text style={styles.infoText} numberOfLines={1}>{order.restaurant.name}</Text>
         </View>
       )}
@@ -144,7 +147,7 @@ export default function HistoryScreen() {
 
       {deliveries.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyEmoji}>📋</Text>
+          <Ionicons name="document-text-outline" size={70} color={COLORS.gray} style={{ marginBottom: 16 }} />
           <Text style={styles.emptyTitle}>Aucune livraison</Text>
           <Text style={styles.emptySubtitle}>Votre historique apparaîtra ici après vos premières livraisons</Text>
         </View>

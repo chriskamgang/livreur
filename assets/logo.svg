@@ -1,0 +1,26 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981"/>
+      <stop offset="100%" style="stop-color:#34D399"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+
+  <!-- Decorative circle -->
+  <circle cx="512" cy="440" r="260" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="8"/>
+  <circle cx="512" cy="440" r="200" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="4"/>
+
+  <!-- Main text "EE" -->
+  <text x="512" y="490" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="280" fill="white" letter-spacing="-10">EE</text>
+
+  <!-- Subtitle -->
+  <text x="512" y="610" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="56" fill="rgba(255,255,255,0.9)" letter-spacing="6">ESTUAIRE</text>
+
+  <!-- Bottom line -->
+  <rect x="340" y="650" width="344" height="4" rx="2" fill="rgba(255,255,255,0.4)"/>
+
+  <!-- Bottom text -->
+  <text x="512" y="710" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="40" fill="rgba(255,255,255,0.7)" letter-spacing="4">EXPRESS</text>
+</svg>

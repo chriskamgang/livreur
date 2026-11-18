@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, SafeAreaView, ActivityIndicator, Alert,
+  StyleSheet, ActivityIndicator, Alert,
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 
 const COLORS = { primary: '#FF6B35', bg: '#FF6B35', text: '#fff' };
@@ -37,7 +39,7 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.emoji}>🛵</Text>
+            <Ionicons name="bicycle" size={72} color="#fff" style={{ marginBottom: 12 }} />
             <Text style={styles.title}>Espace Livreur</Text>
             <Text style={styles.subtitle}>Connectez-vous pour commencer vos livraisons</Text>
           </View>
@@ -70,7 +72,7 @@ export default function LoginScreen() {
                   placeholderTextColor="#bbb"
                 />
                 <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass(!showPass)}>
-                  <Text>{showPass ? '🙈' : '👁️'}</Text>
+                  <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color="#888" />
                 </TouchableOpacity>
               </View>
             </View>

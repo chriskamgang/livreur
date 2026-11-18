@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Express INSAM",
+    "name": "Express Estuaire",
     "slug": "express-insam",
-    "version": "1.0.0",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,16 +17,23 @@
       "privacyPolicyUrl": "https://votresite.com/privacy-driver",
       "termsOfServiceUrl": "https://votresite.com/terms-driver",
       "supportEmail": "livreurs@myinsam.cm",
-      "supportPhone": "+237659339778"
+      "supportPhone": "+237659339778",
+      "eas": {
+        "projectId": "9047e39a-0179-4847-86d0-f440f4a73219"
+      }
     },
+    "owner": "chrisdev237",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.chrisdev237.expressinsam",
+      "buildNumber": "4",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "L'application utilise votre position GPS pour suivre vos livraisons en temps réel.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "L'application a besoin d'accéder à votre position en arrière-plan pour partager votre localisation avec les clients pendant les livraisons.",
         "NSLocationAlwaysUsageDescription": "L'application partage votre position avec les clients pendant les livraisons actives.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -35,6 +42,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.chrisdev237.expressinsam",
+      "versionCode": 4,
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [
         "ACCESS_FINE_LOCATION",
@@ -43,10 +51,29 @@
         "CALL_PHONE",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#FF6B35"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "L'application a besoin d'accéder à votre position en arrière-plan pour partager votre localisation avec les clients pendant les livraisons.",
+          "locationWhenInUsePermission": "L'application utilise votre position GPS pour suivre vos livraisons en temps réel.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true
+        }
+      ]
+    ]
   }
 }

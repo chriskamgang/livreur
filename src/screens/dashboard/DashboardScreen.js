@@ -1,25 +1,32 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, ActivityIndicator, RefreshControl, Switch, Alert,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { deliveryService } from '../../services/deliveryService';
+import { locationService } from '../../services/locationService';
 import { useAuth } from '../../context/AuthContext';
 import { useFocusEffect } from '@react-navigation/native';
 
 const COLORS = { primary: '#FF6B35', bg: '#f8f8f8', card: '#fff', text: '#1a1a1a', gray: '#888' };
 
 const STATUS_CONFIG = {
-  ready:     { label: 'Prête à récupérer', color: '#10b981', bg: '#d1fae5', icon: '📦' },
-  assigned:  { label: 'À récupérer',       color: '#3b82f6', bg: '#EFF6FF', icon: '🏃' },
-  picked_up: { label: 'En route',          color: '#FF6B35', bg: '#FFF3E0', icon: '🚚' },
-  on_the_way:{ label: 'En livraison',      color: '#FF6B35', bg: '#FFF3E0', icon: '🚚' },
+  preparing: { label: 'En préparation',    color: '#d97706', bg: '#fef3c7', iconName: 'flame-outline', badge: 'En préparation' },
+  ready:     { label: 'Prête à récupérer', color: '#10b981', bg: '#d1fae5', iconName: 'cube-outline', badge: 'Prête' },
+  assigned:            { label: 'Vers le restaurant', color: '#3b82f6', bg: '#EFF6FF', iconName: 'walk-outline' },
+  going_to_restaurant: { label: 'Vers le restaurant', color: '#3b82f6', bg: '#EFF6FF', iconName: 'walk-outline' },
+  at_restaurant:       { label: 'Au restaurant',      color: '#3b82f6', bg: '#EFF6FF', iconName: 'restaurant-outline' },
+  picked_up:  { label: 'Vers le client', color: '#FF6B35', bg: '#FFF3E0', iconName: 'car-outline' },
+  on_the_way: { label: 'Vers le client', color: '#FF6B35', bg: '#FFF3E0', iconName: 'car-outline' },
+  arrived:    { label: 'Chez le client', color: '#FF6B35', bg: '#FFF3E0', iconName: 'home-outline' },
 };
 
 function DeliveryCard({ delivery, onPress }) {
   const order = delivery.order || {};
   const statusKey = delivery.status;
-  const status = STATUS_CONFIG[statusKey] || { label: delivery.status, color: COLORS.gray, bg: '#f0f0f0', icon: '📋' };
+  const status = STATUS_CONFIG[statusKey] || { label: delivery.status, color: COLORS.gray, bg: '#f0f0f0', iconName: 'document-text-outline' };
   const date = new Date(delivery.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const deliveryAddress = delivery.delivery_address || order.restaurant?.address || 'Adresse inconnue';
   const total = order.total || order.total_amount || 0;
@@ -29,7 +36,7 @@ function DeliveryCard({ delivery, onPress }) {
     <TouchableOpacity style={styles.modernCard} onPress={() => onPress(delivery)} activeOpacity={0.9}>
       {/* Badge de statut en haut à droite */}
       <View style={[styles.statusCorner, { backgroundColor: status.bg }]}>
-        <Text style={[styles.statusCornerText, { color: status.color }]}>{status.icon}</Text>
+        <Ionicons name={status.iconName} size={20} color={status.color} />
       </View>
 
       {/* En-tête avec numéro et montant */}
@@ -37,7 +44,13 @@ function DeliveryCard({ delivery, onPress }) {
         <View style={styles.orderInfo}>
           <Text style={styles.orderLabel}>COMMANDE</Text>
           <Text style={styles.orderNumber}>#{order.order_number || delivery.id}</Text>
-          <Text style={styles.orderTimestamp}>🕐 {date}</Text>
+          <Text style={styles.orderTimestamp}><Ionicons name="time-outline" size={12} color={COLORS.gray} /> {date}</Text>
+          {status.badge && (
+            <View style={[styles.stateBadge, { backgroundColor: status.bg }]}>
+              <Ionicons name={status.iconName} size={12} color={status.color} />
+              <Text style={[styles.stateBadgeText, { color: status.color }]}>{status.badge}</Text>
+            </View>
+          )}
         </View>
         <View style={styles.amountBox}>
           <Text style={styles.amountLabel}>MONTANT</Text>
@@ -56,7 +69,7 @@ function DeliveryCard({ delivery, onPress }) {
             <Text style={styles.pointDotText}>A</Text>
           </View>
           <View style={styles.pointContent}>
-            <Text style={styles.pointLabel}>📦 RÉCUPÉRATION</Text>
+            <Text style={styles.pointLabel}><Ionicons name="cube-outline" size={12} color={COLORS.gray} /> RÉCUPÉRATION</Text>
             {order.restaurant && (
               <Text style={styles.pointTitle} numberOfLines={1}>{order.restaurant.name}</Text>
             )}
@@ -73,7 +86,7 @@ function DeliveryCard({ delivery, onPress }) {
             <Text style={styles.pointDotText}>B</Text>
           </View>
           <View style={styles.pointContent}>
-            <Text style={styles.pointLabel}>🏠 LIVRAISON</Text>
+            <Text style={styles.pointLabel}><Ionicons name="home-outline" size={12} color={COLORS.gray} /> LIVRAISON</Text>
             <Text style={styles.pointTitle} numberOfLines={1}>{order.user?.name || 'Client'}</Text>
             <Text style={styles.pointAddress} numberOfLines={2}>{deliveryAddress}</Text>
           </View>
@@ -83,7 +96,7 @@ function DeliveryCard({ delivery, onPress }) {
       {/* Bouton d'action */}
       <View style={styles.actionButton}>
         <Text style={styles.actionButtonText}>{status.label}</Text>
-        <Text style={styles.actionArrow}>→</Text>
+        <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
       </View>
     </TouchableOpacity>
   );
@@ -94,7 +107,7 @@ export default function DashboardScreen({ navigation }) {
   const [deliveries,  setDeliveries]  = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
-  const [isOnline,    setIsOnline]    = useState(user?.is_online ?? false);
+  const [isOnline,    setIsOnline]    = useState(user?.is_online === true || user?.is_online === 1 || user?.is_online === '1');
   const [stats,       setStats]       = useState(null);
   const [togglingOnline, setTogglingOnline] = useState(false);
 
@@ -103,15 +116,30 @@ export default function DashboardScreen({ navigation }) {
       const statsData = await deliveryService.getStats().catch(() => null);
       if (statsData) setStats(statsData);
 
-      // Si hors ligne, on ne charge pas les commandes (l'API renvoie 403)
-      const currentlyOnline = statsData?.is_online ?? isOnline;
+      // Sync online status from server
+      const rawOnline = statsData?.is_online ?? isOnline;
+      const currentlyOnline = rawOnline === true || rawOnline === 1 || rawOnline === '1';
+      setIsOnline(currentlyOnline);
+
       if (currentlyOnline) {
-        const pending = await deliveryService.getPendingDeliveries().catch(() => []);
-        const list = Array.isArray(pending) ? pending : [];
-        setDeliveries(list);
+        // Charger les livraisons actives ET les commandes disponibles en parallèle
+        const [active, available] = await Promise.all([
+          deliveryService.getActiveDeliveries().catch(() => null),
+          deliveryService.getAvailableOrders().catch(() => []),
+        ]);
+        // GPS : suivi de la livraison en cours, sinon position légère pour la carte admin
+        const activeList = Array.isArray(active) ? active : [];
+        if (activeList.length > 0) {
+          locationService.startTracking(activeList[0].id, { silent: true });
+        } else if (active !== null) { // ne rien arrêter si la requête a échoué
+          if (locationService.isTracking()) await locationService.stopTracking();
+          locationService.startIdleTracking();
+        }
+        // Livraisons actives en premier, puis commandes disponibles
+        setDeliveries([...(Array.isArray(active) ? active : []), ...(Array.isArray(available) ? available : [])]);
       } else {
+        locationService.stopIdleTracking();
         setDeliveries([]);
-        setIsOnline(false);
       }
     } catch (e) {
       console.error('Erreur chargement livraisons:', e);
@@ -123,7 +151,7 @@ export default function DashboardScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => {
     loadData();
-    const interval = setInterval(loadData, 30000); // Rafraîchir toutes les 30s
+    const interval = setInterval(loadData, 15000); // Rafraîchir toutes les 15s
     return () => clearInterval(interval);
   }, [loadData]));
 
@@ -132,6 +160,8 @@ export default function DashboardScreen({ navigation }) {
     try {
       await deliveryService.updateOnlineStatus(value);
       setIsOnline(value);
+      if (value) locationService.startIdleTracking();
+      else locationService.stopIdleTracking();
     } catch (e) {
       Alert.alert('Erreur', 'Impossible de modifier votre statut.');
     } finally {
@@ -152,22 +182,22 @@ export default function DashboardScreen({ navigation }) {
             <Text style={styles.avatarText}>{initial}</Text>
           </View>
           <View>
-            <Text style={styles.greeting}>Bonjour, {user?.name?.split(' ')[0]} 👋</Text>
+            <Text style={styles.greeting}>Bonjour, {user?.name?.split(' ')[0]}</Text>
             <Text style={styles.subGreeting}>Livreur</Text>
           </View>
         </View>
         {/* Toggle en ligne */}
         <View style={styles.onlineToggle}>
           <Text style={[styles.onlineLabel, { color: isOnline ? '#22c55e' : COLORS.gray }]}>
-            {isOnline ? '🟢 En ligne' : '⚫ Hors ligne'}
+            <Ionicons name={isOnline ? 'radio-button-on' : 'radio-button-off'} size={12} color={isOnline ? '#22c55e' : COLORS.gray} /> {isOnline ? 'En ligne' : 'Hors ligne'}
           </Text>
-          <Switch
-            value={isOnline}
-            onValueChange={handleToggleOnline}
-            disabled={togglingOnline}
-            trackColor={{ false: '#e0e0e0', true: '#86efac' }}
-            thumbColor={isOnline ? '#22c55e' : '#ccc'}
-          />
+          <TouchableOpacity
+            style={[styles.toggleTrack, isOnline && styles.toggleTrackOn]}
+            onPress={() => !togglingOnline && handleToggleOnline(!isOnline)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.toggleThumb, isOnline && styles.toggleThumbOn]} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -183,7 +213,7 @@ export default function DashboardScreen({ navigation }) {
             <Text style={styles.statLabel}>Total livraisons</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>⭐ {Number(stats.rating ?? 0).toFixed(1)}</Text>
+            <Text style={styles.statValue}><Ionicons name="star" size={16} color={COLORS.primary} /> {Number(stats.rating ?? 0).toFixed(1)}</Text>
             <Text style={styles.statLabel}>Votre note</Text>
           </View>
         </View>
@@ -203,13 +233,13 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.loader}><ActivityIndicator size="large" color={COLORS.primary} /></View>
       ) : !isOnline ? (
         <View style={styles.offlineContainer}>
-          <Text style={styles.offlineEmoji}>😴</Text>
+          <Ionicons name="moon-outline" size={70} color={COLORS.gray} style={{ marginBottom: 16 }} />
           <Text style={styles.offlineTitle}>Vous êtes hors ligne</Text>
           <Text style={styles.offlineSubtitle}>Activez le bouton "En ligne" pour recevoir des commandes</Text>
         </View>
       ) : deliveries.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyEmoji}>🛵</Text>
+          <Ionicons name="bicycle-outline" size={70} color={COLORS.gray} style={{ marginBottom: 16 }} />
           <Text style={styles.emptyTitle}>Aucune commande disponible</Text>
           <Text style={styles.emptySubtitle}>Les nouvelles commandes apparaîtront ici automatiquement</Text>
         </View>
@@ -220,7 +250,7 @@ export default function DashboardScreen({ navigation }) {
           renderItem={({ item }) => (
             <DeliveryCard
               delivery={item}
-              onPress={delivery => navigation.navigate('DeliveryDetail', { orderId: delivery.order_id })}
+              onPress={delivery => navigation.navigate('DeliveryDetail', { orderId: delivery.order_id || delivery.order?.id })}
             />
           )}
           contentContainerStyle={{ padding: 16 }}
@@ -244,8 +274,18 @@ const styles = StyleSheet.create({
   avatarText:  { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   greeting:    { fontSize: 15, fontWeight: 'bold', color: COLORS.text },
   subGreeting: { fontSize: 12, color: COLORS.gray },
-  onlineToggle:{ alignItems: 'flex-end', gap: 2 },
+  onlineToggle:{ alignItems: 'flex-end', gap: 6 },
   onlineLabel: { fontSize: 12, fontWeight: '600' },
+  toggleTrack: {
+    width: 50, height: 28, borderRadius: 14,
+    backgroundColor: '#e0e0e0', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  toggleTrackOn: { backgroundColor: '#86efac' },
+  toggleThumb: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: '#ccc',
+  },
+  toggleThumbOn: { backgroundColor: '#22c55e', alignSelf: 'flex-end' },
 
   statsRow: {
     flexDirection: 'row', gap: 10,
@@ -313,6 +353,11 @@ const styles = StyleSheet.create({
   orderLabel: { fontSize: 10, fontWeight: '700', color: COLORS.gray, letterSpacing: 0.5 },
   orderNumber: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginTop: 4 },
   orderTimestamp: { fontSize: 12, color: COLORS.gray, marginTop: 4 },
+  stateBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginTop: 6,
+  },
+  stateBadgeText: { fontSize: 11, fontWeight: '700' },
 
   amountBox: { alignItems: 'flex-end' },
   amountLabel: { fontSize: 10, fontWeight: '700', color: COLORS.gray, letterSpacing: 0.5 },

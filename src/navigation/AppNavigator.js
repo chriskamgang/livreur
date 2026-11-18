@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 
 import LoginScreen      from '../screens/auth/LoginScreen';
@@ -16,8 +17,8 @@ const Tab   = createBottomTabNavigator();
 
 const COLORS = { primary: '#FF6B35' };
 
-function TabIcon({ emoji, focused }) {
-  return <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.45 }}>{emoji}</Text>;
+function TabIonicon({ name, focused }) {
+  return <Ionicons name={name} size={22} color={focused ? '#FF6B35' : '#999'} />;
 }
 
 function MainTabs() {
@@ -46,7 +47,7 @@ function MainTabs() {
         component={DashboardScreen}
         options={{
           tabBarLabel: 'Accueil',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIonicon name="home-outline" focused={focused} />,
         }}
       />
       <Tab.Screen
@@ -54,7 +55,7 @@ function MainTabs() {
         component={HistoryScreen}
         options={{
           tabBarLabel: 'Historique',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📋" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIonicon name="time-outline" focused={focused} />,
         }}
       />
       <Tab.Screen
@@ -62,7 +63,7 @@ function MainTabs() {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profil',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIonicon name="person-outline" focused={focused} />,
         }}
       />
     </Tab.Navigator>
